@@ -1,0 +1,78 @@
+pipeline {
+    agent any
+    tools {
+
+    }
+    parameters {
+        choice(name: 'ENV', choice:['dev','prod'],description: 'Choose the enviroment')
+        string(name: 'VERSION',default:'1.0.0',description:'verison of application')
+        string(name:'DOCKER_REGISTRY',default:'bsal694',description:'name of registry')
+    }
+    environment {
+        KUBE_NAMESPACE = ${params.ENV}
+    }
+    stages {
+        stage('extract version from packag json') {
+            steps {
+                script {
+                    def packageJson = readJSON file: 'package.json'
+                    VERSION = packageJson.verison
+                    echo "Version from package.json: ${VERSION}"
+                }
+            }
+        }
+        stage('extract version from packag json') {
+            steps {
+                script {
+
+                    if(BRANCH_NAME == 'main') {
+                        VERSION = "${VERSION}-stable"
+                    }
+                    else if (BRANCH_NAME.startsWith('feature')) {
+                        VERSION = "${VERSION}-feature-${BRANCH_NAME.split('/')[1]}"
+                    } else {
+                        VERSION = "${VERSION}-dev"
+                    }
+                    echo "Final version: ${VERSION}"
+                }
+            }
+        }
+        stage('code initilization') {
+            steps {
+                sh ''
+            }
+        }
+        stage('code build') {
+            steps {
+                dir ('frontend') {
+                    def finalversion = "${params.VERSION}-${params.ENV}"
+                    sh "docker build -t ${params.DOCKER_REGISTRY}/frontend:${finalversion}"
+                    echo "build Docker image ${params.DOCKER_REGISTRY}/frontend:${finalversion}""
+                }
+                
+            }
+        }
+        stage('docker push to dockerhub') {
+            steps {
+               sh "docker login -u"
+               sh "docker push ${params.DOCKER_REGISTRY}/frontend:${finalversion}"
+               sh "docker logout "
+            }
+        }
+        stage('deply to kubernetes') {
+            steps {
+                dir('deployment') {
+                    def finalVersion = "${params.VERSION}-${params.ENVIRONMENT}"
+                    sh """
+                    kubectl apply -f deployment.yaml --record
+                    kubectl set image deployment/my-app my-app=${params.DOCKER_REGISTRY}/my-app:${finalVersion} -n ${KUBE_NAMESPACE}
+                    """
+                    echo "Deployed version ${finalVersion} to ${KUBE_NAMESPACE} environment"
+                    
+                }
+               
+            }
+        }
+
+    }
+}
