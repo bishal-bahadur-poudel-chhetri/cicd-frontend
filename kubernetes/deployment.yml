@@ -1,14 +1,78 @@
 apiVersion: v1
-kind: Service
+kind: Namespace
 metadata:
-  name: reactfrontend-service-production
-  namespace: production
-spec:
-  selector:
-    app: production
-    type: frontend
-  ports:
-  - port: 5000
-    targetPort: 5000
-    NodePort: 30080
+  name: production
 
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-service
+  namespace: production
+  labels:
+    type: frontend
+    app: production
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+      type: production
+  template:
+    metadata:
+      labels:
+        app: frontend
+        type: production
+    spec:
+      containers:
+        - image: bsal694/frontend:v1.0.0
+          name: frontend
+          ports:
+            - containerPort: 80
+          envFrom:
+            - configMapRef:
+                name: react-config  # Ensure the correct configMap name here
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "500m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-service
+  namespace: production
+  labels:
+    type: backend
+    app: production
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+      type: production
+  template:
+    metadata:
+      labels:
+        app: backend
+        type: production
+    spec:
+      containers:
+        - image: bsal694/backend:v1.0.0
+          name: backend
+          ports:
+            - containerPort: 5000
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "500m"
+            limits:
+              memory: "512Mi"
+              cpu: "1"
